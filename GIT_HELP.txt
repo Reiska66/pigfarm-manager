@@ -1,0 +1,14 @@
+# Git & GitHub quick start (Windows PowerShell)
+
+# Install Git from https://git-scm.com/download/win, then reopen PowerShell.
+
+# Initialize repo and push
+git init
+git add .
+git commit -m "Initial commit: PigFarm Manager"
+git branch -M main
+git remote add origin https://github.com/Reiska66/pigfarm-manager.git
+git push -u origin main
+
+# If you see 'src refspec main does not match any', do at least one commit before pushing.
+# If 'git' not recognized, installation or PATH is not set—reopen terminal after install.
