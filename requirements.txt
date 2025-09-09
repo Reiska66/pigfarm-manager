@@ -1,7 +1,6 @@
 streamlit==1.37.1
-supabase==2.6.0
+supabase-py==2.6.0
 pydantic==2.8.2
 python-dateutil==2.9.0.post0
-
 reportlab==4.2.2
 pandas==2.2.2
