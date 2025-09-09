@@ -6,11 +6,6 @@ from utils import org_header
 st.set_page_config(page_title="PigFarm Manager", page_icon="🐖", layout="wide")
 
 sb: Client = get_client()
-
-st.title("🐖 PigFarm Manager")
-st.info("For admins/managers: enable MFA in Supabase Auth settings for stronger security.")
-tab_login, tab_about = st.tabs(["Sign In / Sign Up", "About"])
-
 import streamlit as st
 import psycopg2, psycopg2.extras
 from supabase import create_client, Client
