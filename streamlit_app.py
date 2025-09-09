@@ -1,22 +1,23 @@
 import streamlit as st
+import psycopg2
+import psycopg2.extras
 from supabase import create_client, Client
-from supabase_client import get_client
-from utils import org_header
 
-st.set_page_config(page_title="PigFarm Manager", page_icon="🐖", layout="wide")
+# ──────────────────────────────────────────────────────────────────────────────
+# Page config
+st.set_page_config(page_title="PigFarm Manager", page_icon="🐖")
 
-sb: Client = get_client()
-import streamlit as st
-import psycopg2, psycopg2.extras
-from supabase import create_client, Client
-from supabase_client import get_client  # if you already use this helper
+st.title("🐖 PigFarm Manager")
+st.info("For admins/managers: enable MFA in Supabase Auth for stronger security.")
 
-# --- Supabase Auth client ---
+# ──────────────────────────────────────────────────────────────────────────────
+# Supabase (Auth) client
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- Postgres connection for roles (users table) ---
+# Postgres connection (for roles in users table)
+@st.cache_resource(show_spinner=False)
 def get_conn():
     return psycopg2.connect(
         host=st.secrets["DB_HOST"],
@@ -28,7 +29,7 @@ def get_conn():
     )
 
 def fetch_or_create_role(email: str) -> str:
-    """Return role for this email; if missing, create as worker and return 'worker'."""
+    """Return role for this email; if missing, create 'worker' and return it."""
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute("select role, is_active from users where email = %s", (email,))
         row = cur.fetchone()
@@ -36,8 +37,7 @@ def fetch_or_create_role(email: str) -> str:
             if not row["is_active"]:
                 raise PermissionError("Your account is deactivated. Contact admin.")
             return row["role"]
-
-        # not found → create default worker entry
+        # create default worker entry if not present
         cur.execute(
             """
             insert into users (email, role, is_active)
@@ -48,37 +48,54 @@ def fetch_or_create_role(email: str) -> str:
         )
         return "worker"
 
-# --- Login UI ---
-st.header("Sign In / Sign Up")
+# ──────────────────────────────────────────────────────────────────────────────
+# Auth UI
+st.subheader("Sign In / Sign Up")
+
 mode = st.radio("Mode", ["Sign In", "Sign Up"], horizontal=True)
 email = st.text_input("Email")
 password = st.text_input("Password", type="password")
 
-if mode == "Sign In":
-    if st.button("Sign In"):
-        try:
-            res = supabase.auth.sign_in_with_password({"email": email, "password": password})
-            user = res.user
-            if not user:
-                st.error("Sign in failed.")
-            else:
-                role = fetch_or_create_role(user.email)
-                st.session_state["email"] = user.email
-                st.session_state["role"] = role
-                st.success(f"Signed in as {user.email} · role: {role}")
-        except Exception as e:
-            st.error(f"Sign in error: {e}")
+colA, colB = st.columns(2)
+with colA:
+    if mode == "Sign In":
+        if st.button("Sign In"):
+            try:
+                res = supabase.auth.sign_in_with_password({"email": email, "password": password})
+                user = res.user
+                if not user:
+                    st.error("Sign in failed.")
+                else:
+                    role = fetch_or_create_role(user.email)
+                    st.session_state["email"] = user.email
+                    st.session_state["role"] = role
+                    st.success(f"Signed in as {user.email} · role: {role}")
+            except Exception as e:
+                st.error(f"Sign in error: {e}")
+    else:
+        if st.button("Sign Up"):
+            try:
+                supabase.auth.sign_up({"email": email, "password": password})
+                st.success("Account created. Confirm via email, then Sign In.")
+            except Exception as e:
+                st.error(f"Sign up error: {e}")
 
-else:
-    if st.button("Sign Up"):
+with colB:
+    if st.button("Sign Out"):
         try:
-            supabase.auth.sign_up({"email": email, "password": password})
-            st.success("Account created. Check your email for confirmation, then Sign In.")
-        except Exception as e:
-            st.error(f"Sign up error: {e}")
-    st.markdown(
-        """
-        **Secure, multi-user pig farm records** with org-based isolation and roles.
-        Use the sidebar to access Pigs, Feed Logs, Invoices, and Admin (for org & roles mapping).
-        """
-    )
+            supabase.auth.sign_out()
+        except Exception:
+            pass
+        st.session_state.clear()
+        st.success("Signed out.")
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Status + navigation hints
+role = st.session_state.get("role")
+if role:
+    st.success(f"You are logged in as **{st.session_state['email']}** · role: **{role}**")
+    st.write("Open the sidebar to navigate pages.")
+    if role == "admin":
+        st.info("Admin: you should now be able to open **Admin · Users** in the sidebar.")
+else:
+    st.warning("Not logged in yet.")
